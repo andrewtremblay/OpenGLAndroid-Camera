@@ -11,7 +11,7 @@ import android.view.MotionEvent;
 
 import com.officialandroidexample.gl2cameraeye.CamRenderer;
 
-class CamGLSurfaceView extends GLSurfaceView implements SensorEventListener {
+public class CamGLSurfaceView extends GLSurfaceView implements SensorEventListener {
     public CamGLSurfaceView(Context context) {
         super(context);
         setEGLContextClientVersion(2);
