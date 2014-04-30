@@ -16,6 +16,6 @@
 
 <resources>
 
-    <string name="gl2cameraeye_name">GL2CameraEye</string>
+    <string name="app_name">CamCam</string>
 
 </resources>
