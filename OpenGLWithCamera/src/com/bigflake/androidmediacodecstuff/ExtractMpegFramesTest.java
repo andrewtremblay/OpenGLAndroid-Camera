@@ -16,17 +16,11 @@
 
 package com.bigflake.androidmediacodecstuff;
 
-
 import android.graphics.Bitmap;
 import android.graphics.SurfaceTexture;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
-import android.opengl.EGL14;
-import android.opengl.EGLConfig;
-import android.opengl.EGLContext;
-import android.opengl.EGLDisplay;
-import android.opengl.EGLSurface;
 import android.opengl.GLES11Ext;
 import android.opengl.GLES20;
 import android.opengl.Matrix;
@@ -44,9 +38,16 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 
+import javax.microedition.khronos.egl.EGL10;
+import javax.microedition.khronos.egl.EGLConfig;
+import javax.microedition.khronos.egl.EGLContext;
+import javax.microedition.khronos.egl.EGLDisplay;
+import javax.microedition.khronos.egl.EGLSurface;
+
 //20131122: minor tweaks to saveFrame() I/O
 //20131205: add alpha to EGLConfig (huge glReadPixels speedup); pre-allocate pixel buffers;
 //          log time to run saveFrame()
+//20131210: switch from EGL14 to EGL10 for API 16 compatibility
 //20140123: correct error checks on glGet*Location() and program creation (they don't set error)
 //20140212: eliminate byte swap
 
@@ -317,10 +318,11 @@ public class ExtractMpegFramesTest extends AndroidTestCase {
         private ExtractMpegFramesTest.STextureRender mTextureRender;
         private SurfaceTexture mSurfaceTexture;
         private Surface mSurface;
+        private EGL10 mEgl;
 
-        private EGLDisplay mEGLDisplay = EGL14.EGL_NO_DISPLAY;
-        private EGLContext mEGLContext = EGL14.EGL_NO_CONTEXT;
-        private EGLSurface mEGLSurface = EGL14.EGL_NO_SURFACE;
+        private EGLDisplay mEGLDisplay = EGL10.EGL_NO_DISPLAY;
+        private EGLContext mEGLContext = EGL10.EGL_NO_CONTEXT;
+        private EGLSurface mEGLSurface = EGL10.EGL_NO_SURFACE;
         int mWidth;
         int mHeight;
 
@@ -338,6 +340,7 @@ public class ExtractMpegFramesTest extends AndroidTestCase {
             if (width <= 0 || height <= 0) {
                 throw new IllegalArgumentException();
             }
+            mEgl = (EGL10) EGLContext.getEGL();
             mWidth = width;
             mHeight = height;
 
@@ -379,40 +382,43 @@ public class ExtractMpegFramesTest extends AndroidTestCase {
          * Prepares EGL.  We want a GLES 2.0 context and a surface that supports pbuffer.
          */
         private void eglSetup() {
-            mEGLDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY);
-            if (mEGLDisplay == EGL14.EGL_NO_DISPLAY) {
+            final int EGL_OPENGL_ES2_BIT = 0x0004;
+            final int EGL_CONTEXT_CLIENT_VERSION = 0x3098;
+
+            mEGLDisplay = mEgl.eglGetDisplay(EGL10.EGL_DEFAULT_DISPLAY);
+            if (mEGLDisplay == EGL10.EGL_NO_DISPLAY) {
                 throw new RuntimeException("unable to get EGL14 display");
             }
             int[] version = new int[2];
-            if (!EGL14.eglInitialize(mEGLDisplay, version, 0, version, 1)) {
+            if (!mEgl.eglInitialize(mEGLDisplay, version)) {
                 mEGLDisplay = null;
                 throw new RuntimeException("unable to initialize EGL14");
             }
 
             // Configure EGL for pbuffer and OpenGL ES 2.0, 24-bit RGB.
             int[] attribList = {
-                    EGL14.EGL_RED_SIZE, 8,
-                    EGL14.EGL_GREEN_SIZE, 8,
-                    EGL14.EGL_BLUE_SIZE, 8,
-                    EGL14.EGL_ALPHA_SIZE, 8,
-                    EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
-                    EGL14.EGL_SURFACE_TYPE, EGL14.EGL_PBUFFER_BIT,
-                    EGL14.EGL_NONE
+                    EGL10.EGL_RED_SIZE, 8,
+                    EGL10.EGL_GREEN_SIZE, 8,
+                    EGL10.EGL_BLUE_SIZE, 8,
+                    EGL10.EGL_ALPHA_SIZE, 8,
+                    EGL10.EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+                    EGL10.EGL_SURFACE_TYPE, EGL10.EGL_PBUFFER_BIT,
+                    EGL10.EGL_NONE
             };
             EGLConfig[] configs = new EGLConfig[1];
             int[] numConfigs = new int[1];
-            if (!EGL14.eglChooseConfig(mEGLDisplay, attribList, 0, configs, 0, configs.length,
-                    numConfigs, 0)) {
+            if (!mEgl.eglChooseConfig(mEGLDisplay, attribList, configs, configs.length,
+                    numConfigs)) {
                 throw new RuntimeException("unable to find RGB888+recordable ES2 EGL config");
             }
 
             // Configure context for OpenGL ES 2.0.
             int[] attrib_list = {
-                    EGL14.EGL_CONTEXT_CLIENT_VERSION, 2,
-                    EGL14.EGL_NONE
+                    EGL_CONTEXT_CLIENT_VERSION, 2,
+                    EGL10.EGL_NONE
             };
-            mEGLContext = EGL14.eglCreateContext(mEGLDisplay, configs[0], EGL14.EGL_NO_CONTEXT,
-                    attrib_list, 0);
+            mEGLContext = mEgl.eglCreateContext(mEGLDisplay, configs[0], EGL10.EGL_NO_CONTEXT,
+                    attrib_list);
             checkEglError("eglCreateContext");
             if (mEGLContext == null) {
                 throw new RuntimeException("null context");
@@ -420,11 +426,11 @@ public class ExtractMpegFramesTest extends AndroidTestCase {
 
             // Create a pbuffer surface.
             int[] surfaceAttribs = {
-                    EGL14.EGL_WIDTH, mWidth,
-                    EGL14.EGL_HEIGHT, mHeight,
-                    EGL14.EGL_NONE
+                    EGL10.EGL_WIDTH, mWidth,
+                    EGL10.EGL_HEIGHT, mHeight,
+                    EGL10.EGL_NONE
             };
-            mEGLSurface = EGL14.eglCreatePbufferSurface(mEGLDisplay, configs[0], surfaceAttribs, 0);
+            mEGLSurface = mEgl.eglCreatePbufferSurface(mEGLDisplay, configs[0], surfaceAttribs);
             checkEglError("eglCreatePbufferSurface");
             if (mEGLSurface == null) {
                 throw new RuntimeException("surface was null");
@@ -435,15 +441,17 @@ public class ExtractMpegFramesTest extends AndroidTestCase {
          * Discard all resources held by this class, notably the EGL context.
          */
         public void release() {
-            if (mEGLDisplay != EGL14.EGL_NO_DISPLAY) {
-                EGL14.eglDestroySurface(mEGLDisplay, mEGLSurface);
-                EGL14.eglDestroyContext(mEGLDisplay, mEGLContext);
-                EGL14.eglReleaseThread();
-                EGL14.eglTerminate(mEGLDisplay);
+            if (mEGLDisplay != EGL10.EGL_NO_DISPLAY) {
+                mEgl.eglDestroySurface(mEGLDisplay, mEGLSurface);
+                mEgl.eglDestroyContext(mEGLDisplay, mEGLContext);
+                //mEgl.eglReleaseThread();
+                mEgl.eglMakeCurrent(mEGLDisplay, EGL10.EGL_NO_SURFACE, EGL10.EGL_NO_SURFACE,
+                        EGL10.EGL_NO_CONTEXT);
+                mEgl.eglTerminate(mEGLDisplay);
             }
-            mEGLDisplay = EGL14.EGL_NO_DISPLAY;
-            mEGLContext = EGL14.EGL_NO_CONTEXT;
-            mEGLSurface = EGL14.EGL_NO_SURFACE;
+            mEGLDisplay = EGL10.EGL_NO_DISPLAY;
+            mEGLContext = EGL10.EGL_NO_CONTEXT;
+            mEGLSurface = EGL10.EGL_NO_SURFACE;
 
             mSurface.release();
 
@@ -460,7 +468,7 @@ public class ExtractMpegFramesTest extends AndroidTestCase {
          * Makes our EGL context and surface current.
          */
         public void makeCurrent() {
-            if (!EGL14.eglMakeCurrent(mEGLDisplay, mEGLSurface, mEGLSurface, mEGLContext)) {
+            if (!mEgl.eglMakeCurrent(mEGLDisplay, mEGLSurface, mEGLSurface, mEGLContext)) {
                 throw new RuntimeException("eglMakeCurrent failed");
             }
         }
@@ -586,7 +594,7 @@ public class ExtractMpegFramesTest extends AndroidTestCase {
          */
         private void checkEglError(String msg) {
             int error;
-            if ((error = EGL14.eglGetError()) != EGL14.EGL_SUCCESS) {
+            if ((error = mEgl.eglGetError()) != EGL10.EGL_SUCCESS) {
                 throw new RuntimeException(msg + ": EGL error: 0x" + Integer.toHexString(error));
             }
         }
