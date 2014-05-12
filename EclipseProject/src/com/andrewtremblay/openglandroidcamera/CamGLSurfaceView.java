@@ -1,8 +1,12 @@
 package com.andrewtremblay.openglandroidcamera;
 
+import com.andrewtremblay.openglandroidcamera.helpers.CameraHelpers;
+import com.andrewtremblay.openglandroidcamera.helpers.DebugHelpers;
+
 import android.content.Context;
 import android.hardware.Camera;
 import android.opengl.GLSurfaceView;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.OnTouchListener;
@@ -47,6 +51,8 @@ public class CamGLSurfaceView extends GLSurfaceView  {
         mCamera = Camera.open();
         Camera.Parameters p = mCamera.getParameters();
         // No changes to default camera parameters
+        Log.d(DebugHelpers.TAG, CameraHelpers.cameraParamsToString(p));
+        
         mCamera.setParameters(p);
 
         queueEvent(new Runnable(){

@@ -2,7 +2,7 @@ package com.andrewtremblay.openglandroidcamera;
 
 import java.io.IOException;
 
-import com.andrewtremblay.openglandroidcamera.helpers.DebugConstants;
+import com.andrewtremblay.openglandroidcamera.helpers.DebugHelpers;
 
 import android.content.Context;
 import android.hardware.Camera;
@@ -34,7 +34,7 @@ public class CameraPreview extends SurfaceView implements Callback {
             mCamera.setPreviewDisplay(holder);
             mCamera.startPreview();
         } catch (IOException e) {
-            Log.d(DebugConstants.TAG, "Error setting camera preview: " + e.getMessage());
+            Log.d(DebugHelpers.TAG, "Error setting camera preview: " + e.getMessage());
         }
 	}
 	
@@ -65,7 +65,7 @@ public class CameraPreview extends SurfaceView implements Callback {
             mCamera.startPreview();
 
         } catch (Exception e){
-            Log.d(DebugConstants.TAG, "Error starting camera preview: " + e.getMessage());
+            Log.d(DebugHelpers.TAG, "Error starting camera preview: " + e.getMessage());
         }
     }
 
